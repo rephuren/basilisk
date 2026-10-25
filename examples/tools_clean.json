@@ -1,0 +1,46 @@
+{
+  "server": "weather",
+  "tools": [
+    {
+      "name": "get_forecast",
+      "description": "Возвращает прогноз погоды на 1–7 дней для города.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "city"
+        ],
+        "properties": {
+          "city": {
+            "type": "string",
+            "maxLength": 80,
+            "description": "Название города"
+          },
+          "days": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 7
+          }
+        }
+      }
+    },
+    {
+      "name": "list_units",
+      "description": "Список поддерживаемых единиц измерения.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "temperature",
+              "wind",
+              "pressure"
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,105 @@
+#!/usr/bin/env node
+import { readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { parseArgs } from "node:util";
+import { loadInventory } from "./load.js";
+import { makeLock, parseLock, verify } from "./pin.js";
+import { renderJson, renderRules, renderSarif, renderText } from "./report.js";
+import { scan } from "./scan.js";
+import { type Finding, SEVERITY_ORDER, type Severity, severityRank } from "./types.js";
+
+const HELP = `basilisk: статический аудит MCP-серверов и описаний инструментов LLM
+
+использование:
+  basilisk scan <путь...>      проверить конфиги и списки инструментов (файлы или папки)
+  basilisk pin <путь...>       закрепить текущие определения в lock-файле
+  basilisk verify <путь...>    сравнить с lock-файлом: найти подмену определений
+  basilisk rules               список правил
+
+опции scan:
+  --format text|json|sarif     формат отчёта (по умолчанию text)
+  --out <файл>                 записать отчёт в файл
+  --fail-on <уровень>          код возврата 1, если есть находки не ниже уровня (по умолчанию high; none отключает)
+  --min-severity <уровень>     не показывать находки ниже уровня
+  --ignore <ID,ID>             отключить правила
+общие:
+  --lock <файл>                lock-файл для pin и verify (по умолчанию basilisk.lock.json)
+  --no-color, --version, --help
+
+коды возврата: 0 чисто, 1 есть находки выше порога, 2 ошибка использования или чтения`;
+
+function version(): string {
+  try {
+    const pkg = JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8")) as { version?: string };
+    return pkg.version ?? "0.0.0";
+  } catch {
+    return "0.0.0";
+  }
+}
+
+function level(value: string | undefined, name: string, allowNone = false): Severity | "none" | undefined {
+  if (value === undefined) return undefined;
+  if (allowNone && value === "none") return "none";
+  if ((SEVERITY_ORDER as string[]).includes(value)) return value as Severity;
+  throw new Error(`--${name}: ожидается ${SEVERITY_ORDER.join(", ")}${allowNone ? " или none" : ""}`);
+}
+
+export function run(argv: string[], write: (s: string) => void = (s) => process.stdout.write(s), isTty = Boolean(process.stdout.isTTY)): number {
+  let parsed;
+  try {
+    parsed = parseArgs({
+      args: argv,
+      allowPositionals: true,
+      options: {
+        format: { type: "string" }, out: { type: "string" }, "fail-on": { type: "string" }, "min-severity": { type: "string" },
+        ignore: { type: "string" }, lock: { type: "string" }, "no-color": { type: "boolean" }, version: { type: "boolean" }, help: { type: "boolean" },
+      },
+    });
+    const { values, positionals } = parsed;
+    if (values.version) return write(`${version()}\n`), 0;
+    const [command, ...paths] = positionals;
+    if (values.help || !command) return write(`${HELP}\n`), command || values.help ? 0 : 2;
+    const color = isTty && !values["no-color"] && !process.env["NO_COLOR"];
+    if (command === "rules") return write(renderRules(color)), 0;
+    if (!["scan", "pin", "verify"].includes(command)) throw new Error(`неизвестная команда «${command}»`);
+    if (!paths.length) throw new Error(`${command}: укажите хотя бы один путь`);
+
+    const inv = loadInventory(paths);
+    const lockPath = values.lock ?? "basilisk.lock.json";
+
+    if (command === "pin") {
+      writeFileSync(lockPath, JSON.stringify(makeLock(inv), null, 2) + "\n");
+      write(`закреплено: инструментов ${inv.tools.length}, серверов ${inv.servers.length} → ${lockPath}\n`);
+      return inv.tools.length + inv.servers.length === 0 ? 2 : 0;
+    }
+
+    let findings: Finding[];
+    if (command === "verify") {
+      findings = verify(inv, parseLock(readFileSync(lockPath, "utf8")));
+    } else {
+      const min = level(values["min-severity"], "min-severity");
+      findings = scan(inv, { ignore: (values.ignore ?? "").split(",").filter(Boolean), ...(min && min !== "none" ? { minSeverity: min } : {}) });
+    }
+    const format = values.format ?? "text";
+    let report: string;
+    if (format === "json") report = renderJson(inv, findings);
+    else if (format === "sarif") report = renderSarif(findings, version());
+    else if (format === "text") report = renderText(inv, findings, color && !values.out);
+    else throw new Error(`--format: ожидается text, json или sarif`);
+    if (values.out) {
+      writeFileSync(values.out, report);
+      write(`отчёт сохранён: ${values.out}\n`);
+    } else {
+      write(report);
+    }
+    const failOn = level(values["fail-on"], "fail-on", true) ?? "high";
+    if (failOn === "none") return 0;
+    return findings.some((f) => severityRank(f.severity) <= severityRank(failOn)) ? 1 : 0;
+  } catch (e) {
+    process.stderr.write(`ошибка: ${e instanceof Error ? e.message : String(e)}\n`);
+    return 2;
+  }
+}
+
+const entry = process.argv[1] ? realpathSync(process.argv[1]) : "";
+if (entry === fileURLToPath(import.meta.url)) process.exitCode = run(process.argv.slice(2));

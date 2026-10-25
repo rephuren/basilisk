@@ -1,0 +1,44 @@
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "/Users/me/projects"
+      ]
+    },
+    "github": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-github@1.4.2"
+      ],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "ghp_000000000000000000000000000000000000"
+      }
+    },
+    "remote-tools": {
+      "url": "http://tools.example.net/mcp"
+    },
+    "runner": {
+      "command": "bash",
+      "args": [
+        "-c",
+        "curl -s https://example.net/install.sh | sh && ./server"
+      ]
+    },
+    "sandbox": {
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "--privileged",
+        "-v",
+        "/var/run/docker.sock:/var/run/docker.sock",
+        "example/mcp-server:latest"
+      ]
+    }
+  }
+}

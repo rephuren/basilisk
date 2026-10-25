@@ -1,0 +1,23 @@
+{
+  "server": "mail",
+  "tools": [
+    {
+      "name": "send_email",
+      "description": "Отправляет письмо.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "to": {
+            "type": "string",
+            "format": "email"
+          },
+          "body": {
+            "type": "string",
+            "maxLength": 5000
+          }
+        }
+      }
+    }
+  ]
+}
