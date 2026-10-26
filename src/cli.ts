@@ -3,6 +3,7 @@ import { readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { loadInventory } from "./load.js";
+import { applyBaseline, makeBaseline, parseBaseline } from "./baseline.js";
 import { makeLock, parseLock, verify } from "./pin.js";
 import { renderJson, renderRules, renderSarif, renderText } from "./report.js";
 import { scan } from "./scan.js";
@@ -14,6 +15,7 @@ const HELP = `basilisk: статический аудит MCP-серверов �
   basilisk scan <путь...>      проверить конфиги и списки инструментов (файлы или папки)
   basilisk pin <путь...>       закрепить текущие определения в lock-файле
   basilisk verify <путь...>    сравнить с lock-файлом: найти подмену определений
+  basilisk baseline <путь...>  записать текущие находки как известные (--out, по умолчанию basilisk.baseline.json)
   basilisk rules               список правил
 
 опции scan:
@@ -22,6 +24,7 @@ const HELP = `basilisk: статический аудит MCP-серверов �
   --fail-on <уровень>          код возврата 1, если есть находки не ниже уровня (по умолчанию high; none отключает)
   --min-severity <уровень>     не показывать находки ниже уровня
   --ignore <ID,ID>             отключить правила
+  --baseline <файл>            не показывать находки, уже записанные в baseline
 общие:
   --lock <файл>                lock-файл для pin и verify (по умолчанию basilisk.lock.json)
   --no-color, --version, --help
@@ -52,7 +55,7 @@ export function run(argv: string[], write: (s: string) => void = (s) => process.
       allowPositionals: true,
       options: {
         format: { type: "string" }, out: { type: "string" }, "fail-on": { type: "string" }, "min-severity": { type: "string" },
-        ignore: { type: "string" }, lock: { type: "string" }, "no-color": { type: "boolean" }, version: { type: "boolean" }, help: { type: "boolean" },
+        ignore: { type: "string" }, lock: { type: "string" }, baseline: { type: "string" }, "no-color": { type: "boolean" }, version: { type: "boolean" }, help: { type: "boolean" },
       },
     });
     const { values, positionals } = parsed;
@@ -61,7 +64,7 @@ export function run(argv: string[], write: (s: string) => void = (s) => process.
     if (values.help || !command) return write(`${HELP}\n`), command || values.help ? 0 : 2;
     const color = isTty && !values["no-color"] && !process.env["NO_COLOR"];
     if (command === "rules") return write(renderRules(color)), 0;
-    if (!["scan", "pin", "verify"].includes(command)) throw new Error(`неизвестная команда «${command}»`);
+    if (!["scan", "pin", "verify", "baseline"].includes(command)) throw new Error(`неизвестная команда «${command}»`);
     if (!paths.length) throw new Error(`${command}: укажите хотя бы один путь`);
 
     const inv = loadInventory(paths);
@@ -73,18 +76,33 @@ export function run(argv: string[], write: (s: string) => void = (s) => process.
       return inv.tools.length + inv.servers.length === 0 ? 2 : 0;
     }
 
+    if (values.baseline && command !== "scan") throw new Error("--baseline применяется только к scan");
+    let suppressed = 0;
     let findings: Finding[];
+    if (command === "baseline") {
+      const min = level(values["min-severity"], "min-severity");
+      const all = scan(inv, { ignore: (values.ignore ?? "").split(",").filter(Boolean), ...(min && min !== "none" ? { minSeverity: min } : {}) });
+      const target = values.out ?? "basilisk.baseline.json";
+      writeFileSync(target, JSON.stringify(makeBaseline(all), null, 2) + "\n");
+      write(`baseline: записано находок ${all.length} → ${target}\n`);
+      return 0;
+    }
     if (command === "verify") {
       findings = verify(inv, parseLock(readFileSync(lockPath, "utf8")));
     } else {
       const min = level(values["min-severity"], "min-severity");
       findings = scan(inv, { ignore: (values.ignore ?? "").split(",").filter(Boolean), ...(min && min !== "none" ? { minSeverity: min } : {}) });
+      if (values.baseline) {
+        const applied = applyBaseline(findings, parseBaseline(readFileSync(values.baseline, "utf8")));
+        findings = applied.kept;
+        suppressed = applied.suppressed;
+      }
     }
     const format = values.format ?? "text";
     let report: string;
-    if (format === "json") report = renderJson(inv, findings);
+    if (format === "json") report = renderJson(inv, findings, suppressed);
     else if (format === "sarif") report = renderSarif(findings, version());
-    else if (format === "text") report = renderText(inv, findings, color && !values.out);
+    else if (format === "text") report = renderText(inv, findings, color && !values.out, suppressed);
     else throw new Error(`--format: ожидается text, json или sarif`);
     if (values.out) {
       writeFileSync(values.out, report);
