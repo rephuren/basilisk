@@ -14,7 +14,7 @@ export function counts(findings: Finding[]): Record<Severity, number> {
   return c;
 }
 
-export function renderText(inv: Inventory, findings: Finding[], color: boolean): string {
+export function renderText(inv: Inventory, findings: Finding[], color: boolean, suppressed = 0): string {
   const paint = (code: string, s: string) => (color && code ? `${code}${s}${RESET}` : s);
   const out: string[] = [];
   out.push(paint(BOLD, "basilisk") + paint(DIM, `  файлов ${inv.files.length}, серверов ${inv.servers.length}, инструментов ${inv.tools.length}`));
@@ -28,12 +28,13 @@ export function renderText(inv: Inventory, findings: Finding[], color: boolean):
   }
   const c = counts(findings);
   out.push("", paint(DIM, SEVERITY_ORDER.map((s) => `${LABEL[s]} ${c[s]}`).join("  ·  ")));
+  if (suppressed) out.push(paint(DIM, `скрыто по baseline: ${suppressed}`));
   return out.join("\n") + "\n";
 }
 
-export function renderJson(inv: Inventory, findings: Finding[]): string {
+export function renderJson(inv: Inventory, findings: Finding[], suppressed = 0): string {
   return JSON.stringify({
-    summary: { files: inv.files.length, servers: inv.servers.length, tools: inv.tools.length, counts: counts(findings), skipped: inv.skipped },
+    summary: { files: inv.files.length, servers: inv.servers.length, tools: inv.tools.length, counts: counts(findings), suppressed, skipped: inv.skipped },
     findings,
   }, null, 2) + "\n";
 }
