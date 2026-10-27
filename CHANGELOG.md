@@ -3,6 +3,7 @@
 ## Не выпущено
 
 ### Добавлено
+- `scan --auto` и `baseline --auto`: поиск конфигов клиентов (Claude Desktop, Cursor, VS Code, Windsurf, `.mcp.json`) в стандартных местах для macOS, Linux и Windows (#5)
 - режим baseline: команда `baseline` и флаг `scan --baseline` скрывают уже известные находки, так что в CI падают только новые (#4)
 
 ## 0.1.0
