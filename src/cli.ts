@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 import { readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { loadInventory } from "./load.js";
 import { applyBaseline, makeBaseline, parseBaseline } from "./baseline.js";
+import { type Platform, discover } from "./discover.js";
 import { makeLock, parseLock, verify } from "./pin.js";
 import { renderJson, renderRules, renderSarif, renderText } from "./report.js";
 import { scan } from "./scan.js";
@@ -25,6 +27,7 @@ const HELP = `basilisk: статический аудит MCP-серверов �
   --min-severity <уровень>     не показывать находки ниже уровня
   --ignore <ID,ID>             отключить правила
   --baseline <файл>            не показывать находки, уже записанные в baseline
+  --auto                       найти конфиги клиентов (Claude Desktop, Cursor, VS Code, Windsurf, .mcp.json) и проверить их
 общие:
   --lock <файл>                lock-файл для pin и verify (по умолчанию basilisk.lock.json)
   --no-color, --version, --help
@@ -55,7 +58,7 @@ export function run(argv: string[], write: (s: string) => void = (s) => process.
       allowPositionals: true,
       options: {
         format: { type: "string" }, out: { type: "string" }, "fail-on": { type: "string" }, "min-severity": { type: "string" },
-        ignore: { type: "string" }, lock: { type: "string" }, baseline: { type: "string" }, "no-color": { type: "boolean" }, version: { type: "boolean" }, help: { type: "boolean" },
+        ignore: { type: "string" }, lock: { type: "string" }, baseline: { type: "string" }, auto: { type: "boolean" }, "no-color": { type: "boolean" }, version: { type: "boolean" }, help: { type: "boolean" },
       },
     });
     const { values, positionals } = parsed;
@@ -65,7 +68,14 @@ export function run(argv: string[], write: (s: string) => void = (s) => process.
     const color = isTty && !values["no-color"] && !process.env["NO_COLOR"];
     if (command === "rules") return write(renderRules(color)), 0;
     if (!["scan", "pin", "verify", "baseline"].includes(command)) throw new Error(`неизвестная команда «${command}»`);
-    if (!paths.length) throw new Error(`${command}: укажите хотя бы один путь`);
+    if (values.auto && command !== "scan" && command !== "baseline") throw new Error("--auto применяется только к scan и baseline");
+    if (values.auto) {
+      const found = discover(homedir(), process.platform as Platform, process.env, process.cwd());
+      write(found.length ? `найдено конфигов клиентов: ${found.length}\n${found.map((f) => `  ${f}`).join("\n")}\n` : "конфиги клиентов в стандартных местах не найдены\n");
+      paths.push(...found);
+      if (!paths.length) return 0;
+    }
+    if (!paths.length) throw new Error(`${command}: укажите хотя бы один путь или --auto`);
 
     const inv = loadInventory(paths);
     const lockPath = values.lock ?? "basilisk.lock.json";
