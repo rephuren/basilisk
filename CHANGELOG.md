@@ -3,6 +3,11 @@
 ## Не выпущено
 
 ### Добавлено
+- размеченный набор `tests/corpus/corpus.json` (79 примеров, русский и английский) и отложенный `holdout.json`, скрипт `scripts/eval-corpus.mjs` считает precision и recall для BSK001 и BSK004 (#3)
+- русскоязычные шаблоны инъекций и обращений к секретам, новые английские формулировки (забыть указания, скрыть от пользователя, обойти ограничения, `from now on you are`) (#3)
+
+### Исправлено
+- BSK001 больше не срабатывает на «Never show the user's …», BSK004 не срабатывает на `.env.example` (#3)
 - `scan --auto` и `baseline --auto`: поиск конфигов клиентов (Claude Desktop, Cursor, VS Code, Windsurf, `.mcp.json`) в стандартных местах для macOS, Linux и Windows (#5)
 - режим baseline: команда `baseline` и флаг `scan --baseline` скрывают уже известные находки, так что в CI падают только новые (#4)
 
