@@ -11,8 +11,8 @@ interface Pattern {
 // Без вложенных квантификаторов и с ограниченными промежутками: быстрые на длинных входах.
 const INJECTION: Pattern[] = [
   { re: /ignore\s+(?:all\s+|any\s+)?(?:the\s+)?(?:previous|prior|above|earlier|preceding)\s+(?:instructions?|prompts?|messages?|rules?)/i, label: "просит игнорировать прежние указания" },
-  { re: /disregard\s+.{0,40}(?:instructions?|rules?|system\s+prompt|guidelines?)/i, label: "просит отбросить правила" },
-  { re: /(?:do\s+not|don'?t|never)\s+(?:tell|inform|mention|reveal|show|disclose)\s+(?:this\s+|it\s+|that\s+)?(?:to\s+)?(?:the\s+)?user/i, label: "требует скрыть от пользователя" },
+  { re: /disregard\s+.{0,40}(?:instructions?|rules?|system\s+prompt|guidelines?|guidance|directions?)/i, label: "просит отбросить правила" },
+  { re: /(?:do\s+not|don'?t|never)\s+(?:tell|inform|mention|reveal|show|disclose)\s+(?:this\s+|it\s+|that\s+)?(?:to\s+)?(?:the\s+)?user(?!['’]s)/i, label: "требует скрыть от пользователя" },
   { re: /without\s+(?:telling|informing|notifying|alerting)\s+the\s+user/i, label: "действие втайне от пользователя" },
   { re: /<\s*\/?\s*(?:important|system|instructions?|secret|hidden)\s*>/i, label: "псевдо-системная разметка в описании" },
   { re: /(?:^|\n)\s*(?:system|assistant)\s*:/i, label: "имитация системного сообщения" },
@@ -20,16 +20,37 @@ const INJECTION: Pattern[] = [
   { re: /before\s+(?:using|calling|running|invoking)\s+this\s+tool.{0,100}(?:read|send|include|pass|fetch|upload|open)/i, label: "скрытый предварительный шаг перед вызовом" },
   { re: /you\s+(?:must|should|have\s+to|need\s+to)\s+(?:always\s+|first\s+)?(?:call|use|invoke|run|execute)\s+/i, label: "приказывает модели вызывать инструменты", severity: "medium" },
   { re: /(?:this\s+is\s+(?:a\s+)?(?:secret|hidden)|not\s+visible\s+to\s+the\s+user|the\s+user\s+(?:cannot|can'?t|should\s+not)\s+see)/i, label: "намёк на скрытность от пользователя" },
+  { re: /forget\s+(?:everything|all)\b.{0,40}(?:told|said|instructed|earlier|before|above|previous)/i, label: "просит забыть прежние указания" },
+  { re: /stop\s+following\s+.{0,30}(?:instructions?|directions?|rules?|guidelines?)/i, label: "просит перестать следовать указаниям" },
+  { re: /(?:override|bypass)\s+(?:all\s+|any\s+|your\s+|the\s+)?(?:\w+\s+)?(?:guidelines?|safety\s+rules|restrictions?|instructions?)/i, label: "просит обойти ограничения" },
+  { re: /from\s+now\s+on,?\s+you\s+(?:are|will|must|act|should)/i, label: "переопределяет роль модели" },
+  { re: /new\s+instructions\s*:/i, label: "подсовывает новые инструкции" },
+  { re: /keep\s+(?:this|it|that)\b.{0,30}\bsecret\s+from\s+(?:the\s+)?user/i, label: "требует скрыть от пользователя" },
+  { re: /(?:don'?t|do\s+not|never)\s+let\s+the\s+user\s+(?:know|find\s+out|see|notice)/i, label: "требует скрыть от пользователя" },
+  { re: /the\s+user\s+does\s+not\s+need\s+to\s+know/i, label: "намёк на скрытность от пользователя" },
+  // Русский. Границы слов в JS не работают с кириллицей, поэтому основы слов и флаг u.
+  { re: /игнорир(?:уй|уйте|овать)\s+(?:все\s+|всё\s+)?(?:предыдущ|прежн|прошл|вышеуказанн)[а-яё]*\s+(?:инструкци|указани|правил|команд|сообщени|промпт)[а-яё]*/iu, label: "просит игнорировать прежние указания" },
+  { re: /(?:забудь|забудьте|отмени|отмените|отбрось|не\s+учитывай)\s+(?:все\s+|всё\s+)?(?:предыдущ|прежн|прошл)[а-яё]*\s+(?:инструкци|указани|правил|команд)[а-яё]*/iu, label: "просит отбросить правила" },
+  { re: /не\s+(?:сообщай|сообщайте|говори|рассказывай|упоминай|показывай|раскрывай)\s+(?:об\s+этом\s+|этого\s+|это\s+)?(?:пользовател|юзер)[а-яё]*/iu, label: "требует скрыть от пользователя" },
+  { re: /скр(?:ой|ыть|ывай)\s+.{0,30}от\s+пользовател/iu, label: "требует скрыть от пользователя" },
+  { re: /без\s+(?:ведома|уведомления|предупреждения)\s+пользовател/iu, label: "действие втайне от пользователя" },
+  { re: /пользовател[а-яё]*\s+не\s+(?:должен|должна|должно|может|нужно|надо)\s+(?:видеть|знать|замечать)/iu, label: "намёк на скрытность от пользователя" },
+  { re: /(?:ты|вы)\s+(?:обязан|обязаны|должен|должны)\s+(?:всегда\s+|сначала\s+)?(?:вызвать|использовать|запустить|выполнить)/iu, label: "приказывает модели вызывать инструменты", severity: "medium" },
+  { re: /системн[а-яё]*\s+(?:сообщени|промпт|инструкци)[а-яё]*\s*:/iu, label: "имитация системного сообщения" },
+  { re: /перед\s+(?:вызовом|использованием|запуском)\s+(?:этого\s+)?инструмента.{0,100}(?:прочита|отправ|передай|включи|загрузи|открой)/iu, label: "скрытый предварительный шаг перед вызовом" },
 ];
 
 const SENSITIVE: Pattern[] = [
   { re: /~\/\.ssh|\.ssh\/|id_(?:rsa|ed25519|ecdsa)/i, label: "ключи SSH" },
-  { re: /\.aws\/(?:credentials|config)|aws_secret_access_key/i, label: "учётные данные AWS" },
-  { re: /(?:^|[\s"'`(])\.env(?:\.[a-z]+)?(?:$|[\s"'`),.])/i, label: "файл .env" },
+  { re: /\.aws\/(?:credentials|config)|aws[_\s]secret[_\s]access[_\s]key/i, label: "учётные данные AWS" },
+  { re: /(?:^|[\s"'`(])\.env(?!\.(?:example|sample|template))(?:\.[a-z]+)?(?:$|[\s"'`),.])/i, label: "файл .env" },
   { re: /\/etc\/(?:passwd|shadow|sudoers)/i, label: "системные файлы /etc" },
   { re: /\.(?:npmrc|netrc|pypirc|git-credentials|kube\/config|docker\/config\.json)/i, label: "файлы с токенами" },
   { re: /(?:claude_desktop_config|\bmcp\.json\b|\.cursor\/mcp|\.claude\/settings)/i, label: "конфиг MCP-клиента" },
   { re: /(?:keychain|credential\s+store|password\s+manager|browser\s+(?:cookies|profile))/i, label: "хранилища паролей и cookie" },
+  { re: /private\s+key\b.{0,60}(?:home|ssh|stored\s+(?:on|in)|this\s+machine)/i, label: "ключи SSH" },
+  { re: /учётн[а-яё]*\s+данн[а-яё]*\s+aws/iu, label: "учётные данные AWS" },
+  { re: /(?:менеджер[а-яё]*\s+паролей|парол[а-яё]*\s+из\s+(?:браузера|хранилища)|(?:куки|cookies?)\s+браузера|браузерн[а-яё]*\s+(?:куки|cookies?))/iu, label: "хранилища паролей и cookie" },
 ];
 
 const MAX_PAIRWISE = 1_500;
