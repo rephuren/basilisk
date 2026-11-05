@@ -178,3 +178,19 @@ test("устойчивость: странные типы полей не лом
   assert.ok(weird);
   assert.doesNotThrow(() => scan({ tools: weird.tools, servers: [], files: [], skipped: [] }));
 });
+
+test("explain: описывает правило по ID", () => {
+  const rule = RULES[0]!;
+  const { code, out } = capture(["explain", rule.id]);
+  assert.equal(code, 0);
+  assert.ok(out.includes(rule.id) && out.includes(rule.title) && out.includes(rule.fix));
+});
+
+test("explain: все правила из каталога доступны", () => {
+  for (const rule of RULES) assert.equal(capture(["explain", rule.id]).code, 0, rule.id);
+});
+
+test("explain: неизвестный ID и отсутствие ID дают код 2", () => {
+  assert.equal(capture(["explain", "no-such-rule"]).code, 2);
+  assert.equal(capture(["explain"]).code, 2);
+});

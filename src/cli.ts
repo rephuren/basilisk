@@ -7,7 +7,7 @@ import { loadInventory } from "./load.js";
 import { applyBaseline, makeBaseline, parseBaseline } from "./baseline.js";
 import { type Platform, discover } from "./discover.js";
 import { makeLock, parseLock, verify } from "./pin.js";
-import { renderJson, renderRules, renderSarif, renderText } from "./report.js";
+import { renderJson, renderRule, renderRules, renderSarif, renderText } from "./report.js";
 import { scan } from "./scan.js";
 import { type Finding, SEVERITY_ORDER, type Severity, severityRank } from "./types.js";
 
@@ -19,6 +19,7 @@ const HELP = `basilisk: статический аудит MCP-серверов �
   basilisk verify <путь...>    сравнить с lock-файлом: найти подмену определений
   basilisk baseline <путь...>  записать текущие находки как известные (--out, по умолчанию basilisk.baseline.json)
   basilisk rules               список правил
+  basilisk explain <ID>        одно правило подробно: уровень, OWASP, как исправить
 
 опции scan:
   --format text|json|sarif     формат отчёта (по умолчанию text)
@@ -67,6 +68,13 @@ export function run(argv: string[], write: (s: string) => void = (s) => process.
     if (values.help || !command) return write(`${HELP}\n`), command || values.help ? 0 : 2;
     const color = isTty && !values["no-color"] && !process.env["NO_COLOR"];
     if (command === "rules") return write(renderRules(color)), 0;
+    if (command === "explain") {
+      const id = paths[0];
+      if (!id) throw new Error("explain: укажите ID правила (список: basilisk rules)");
+      const text = renderRule(id, color);
+      if (!text) throw new Error(`нет правила «${id}» (список: basilisk rules)`);
+      return write(text), 0;
+    }
     if (!["scan", "pin", "verify", "baseline"].includes(command)) throw new Error(`неизвестная команда «${command}»`);
     if (values.auto && command !== "scan" && command !== "baseline") throw new Error("--auto применяется только к scan и baseline");
     if (values.auto) {

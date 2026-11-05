@@ -83,3 +83,10 @@ export function renderRules(color: boolean): string {
 export function ruleTitle(id: string): string {
   return RULE_BY_ID.get(id)?.title ?? id;
 }
+
+export function renderRule(id: string, color: boolean): string | undefined {
+  const r = RULE_BY_ID.get(id);
+  if (!r) return undefined;
+  const paint = (code: string, text: string) => (color ? `${code}${text}${RESET}` : text);
+  return `${paint(BOLD, r.id)}  ${LABEL[r.severity]}\n${r.title}\n${paint(DIM, r.owasp)}\n\nкак исправить: ${r.fix}\n`;
+}
